@@ -27,7 +27,11 @@ Es un port a Kotlin de [catprinter](https://github.com/guillorrr/catprinter) (Py
 | MXW01 | `0x22 0x21` en `0xae01`, imagen en `0xae03` |
 
 El modelo se detecta por el nombre que anuncia la impresora. La primera vez la app la busca y
-guarda su dirección; si cambia de impresora, toca el nombre arriba a la derecha para olvidarla.
+guarda su dirección, y desde entonces siempre usa esa aunque haya otras encendidas.
+
+Si hay varias en la sala, te pregunta cuál usar, la más cercana primero, con el final de su
+dirección para distinguir dos del mismo modelo (para saber cuál es cuál, acerca el teléfono a la
+que quieres). Para cambiar de impresora, toca su nombre arriba a la derecha.
 
 ## Compilar
 
