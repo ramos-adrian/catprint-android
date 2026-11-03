@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -26,7 +27,8 @@ class ConnectException(message: String) : PrintException(message)
 /** What gets printed: 1 bpp rows (true = black), plus 4 bpp burn levels for printers that can. */
 class PrintJob(val rows: List<BooleanArray>, val grayLevels: List<ByteArray>?, val energy: Int)
 
-data class PrinterInfo(val address: String, val name: String) {
+/** rssi: signal strength when found by a scan (dBm, higher = closer); 0 if unknown. */
+data class PrinterInfo(val address: String, val name: String, val rssi: Int = 0) {
     val isMxw01 get() = name in Protocol.MXW01_NAMES
 }
 
@@ -47,17 +49,26 @@ class Printer(private val context: Context, private val log: (String) -> Unit) {
 
     // ---- discovery ----------------------------------------------------------------------------
 
-    fun scan(timeoutS: Long = SCAN_TIMEOUT_S): PrinterInfo {
+    /**
+     * Finds every printer in range, closest (strongest signal) first. Once the first one shows up
+     * it keeps listening for SCAN_SETTLE_MS, so that others in the room get a chance to answer.
+     */
+    fun scanAll(timeoutS: Long = SCAN_TIMEOUT_S): List<PrinterInfo> {
         if (adapter == null || !adapter.isEnabled) throw PrintException("Activa el Bluetooth.")
         val scanner = adapter.bluetoothLeScanner ?: throw PrintException("Activa el Bluetooth.")
-        val found = LinkedBlockingQueue<PrinterInfo>()
+        val found = ConcurrentHashMap<String, PrinterInfo>()
+        val first = CountDownLatch(1)
         val serviceUuids = Protocol.SERVICE_UUIDS.map { ParcelUuid(it) }
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val name = result.scanRecord?.deviceName ?: result.device.name ?: ""
                 val uuids = result.scanRecord?.serviceUuids.orEmpty()
                 if (uuids.any { it in serviceUuids } || name in Protocol.MXW01_NAMES || name in Protocol.LEGACY_NAMES) {
-                    found.offer(PrinterInfo(result.device.address, name))
+                    val address = result.device.address
+                    // Not every advertisement carries the name: keep the one we already have.
+                    val known = found[address]?.name.orEmpty()
+                    found[address] = PrinterInfo(address, name.ifEmpty { known }, result.rssi)
+                    first.countDown()
                 }
             }
 
@@ -65,17 +76,18 @@ class Printer(private val context: Context, private val log: (String) -> Unit) {
                 log("Error al buscar ($errorCode)")
             }
         }
-        log("Buscando impresora…")
+        log("Buscando impresoras…")
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(null, settings, callback)
         try {
-            return found.poll(timeoutS, TimeUnit.SECONDS)
-                ?: throw PrintException(
-                    if (Build.VERSION.SDK_INT < 31) "No encontré la impresora. ¿Está encendida y cerca? (En este Android la ubicación debe estar activada.)"
-                    else "No encontré la impresora. ¿Está encendida y cerca?")
+            if (!first.await(timeoutS, TimeUnit.SECONDS)) throw PrintException(
+                if (Build.VERSION.SDK_INT < 31) "No encontré la impresora. ¿Está encendida y cerca? (En este Android la ubicación debe estar activada.)"
+                else "No encontré la impresora. ¿Está encendida y cerca?")
+            Thread.sleep(SCAN_SETTLE_MS)
         } finally {
             scanner.stopScan(callback)
         }
+        return found.values.sortedByDescending { it.rssi }
     }
 
     // ---- connection ---------------------------------------------------------------------------
@@ -268,6 +280,7 @@ class Printer(private val context: Context, private val log: (String) -> Unit) {
 
     companion object {
         const val SCAN_TIMEOUT_S = 10L
+        const val SCAN_SETTLE_MS = 2500L
         const val CONNECT_TIMEOUT_S = 10L
         const val CONNECT_ATTEMPTS = 3
         const val CONNECT_RETRY_DELAY_MS = 2000L

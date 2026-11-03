@@ -2,6 +2,7 @@ package com.adrianramos.catprint
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Intent
@@ -31,6 +32,8 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 class MainActivity : Activity() {
 
@@ -143,13 +146,7 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(s: SeekBar?) {}
         })
         printButton.setOnClickListener { print() }
-        printerLabel.setOnClickListener {
-            if (prefs.contains("printer_address")) {
-                prefs.edit().remove("printer_address").remove("printer_name").apply()
-                updatePrinterLabel()
-                toast("Impresora olvidada: se buscará de nuevo al imprimir")
-            }
-        }
+        printerLabel.setOnClickListener { changePrinter() }
     }
 
     /** targetSdk 35+ draws behind the system bars. */
@@ -328,18 +325,81 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
-    private fun print() {
-        if (printing) return
-        val missing = neededPermissions().filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) { requestPermissions(missing.toTypedArray(), REQ_PERMISSIONS); return }
+    /** What to run once the Bluetooth permissions are granted. */
+    private var afterPermissions: (() -> Unit)? = null
 
+    /** Checks permissions and that Bluetooth is on; if not, asks and returns false. */
+    private fun bluetoothReady(then: () -> Unit): Boolean {
+        val missing = neededPermissions().filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) {
+            afterPermissions = then
+            requestPermissions(missing.toTypedArray(), REQ_PERMISSIONS)
+            return false
+        }
         val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
-        if (adapter == null) { toast("Este teléfono no tiene Bluetooth."); return }
+        if (adapter == null) { toast("Este teléfono no tiene Bluetooth."); return false }
         if (!adapter.isEnabled) {
             @Suppress("DEPRECATION", "MissingPermission")
             startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQ_BLUETOOTH)
-            return
+            return false
         }
+        return true
+    }
+
+    /** Scans and, when there is more than one printer in range, lets the user pick. Worker thread. */
+    private fun choosePrinter(printer: Printer, alwaysAsk: Boolean = false): PrinterInfo {
+        val found = printer.scanAll()
+        val pick = if (found.size == 1 && !alwaysAsk) found[0]
+        else askWhichPrinter(found) ?: throw PrintException("Cancelado.")
+        savePrinter(pick)
+        return pick
+    }
+
+    private fun askWhichPrinter(found: List<PrinterInfo>): PrinterInfo? {
+        val answer = LinkedBlockingQueue<Any>()
+        val current = prefs.getString("printer_address", null)
+        val labels = found.mapIndexed { i, p ->
+            val distance = when {
+                p.rssi >= -60 -> "muy cerca"
+                p.rssi >= -75 -> "cerca"
+                else -> "lejos"
+            }
+            val name = p.name.ifBlank { "Impresora" }
+            val id = p.address.takeLast(5) // the end of the MAC tells two units of the same model apart
+            buildString {
+                append("$name  ·  $id  ·  $distance")
+                if (i == 0 && found.size > 1) append(" (la más cercana)")
+                if (p.address == current) append("  ✓")
+            }
+        }
+        ui.post {
+            if (isFinishing) { answer.offer(Unit); return@post }
+            AlertDialog.Builder(this)
+                .setTitle(if (found.size > 1) "Hay ${found.size} impresoras: ¿cuál uso?" else "Impresora encontrada")
+                .setItems(labels.toTypedArray()) { _, i -> answer.offer(found[i]) }
+                .setNegativeButton("Cancelar") { _, _ -> answer.offer(Unit) }
+                .setOnCancelListener { answer.offer(Unit) }
+                .show()
+        }
+        return answer.poll(5, TimeUnit.MINUTES) as? PrinterInfo
+    }
+
+    /** Tapping the printer name: look around again and pick (or switch) printer. */
+    private fun changePrinter() {
+        if (printing || !bluetoothReady { changePrinter() }) return
+        setPrinting(true, "Buscando…")
+        worker.execute {
+            val error = runCatching { choosePrinter(Printer(this) { msg -> ui.post { status.text = msg } }, alwaysAsk = true) }
+                .exceptionOrNull()
+            ui.post {
+                setPrinting(false)
+                status.text = error?.message ?: "Impresora guardada ✓"
+            }
+        }
+    }
+
+    private fun print() {
+        if (printing || !bluetoothReady { print() }) return
 
         // Render again so the job matches the current input exactly.
         ui.removeCallbacks(previewRunnable)
@@ -354,15 +414,14 @@ class MainActivity : Activity() {
                 val result = page()?.render(m) ?: throw PrintException("No hay nada que imprimir.")
                 val job = PrintJob(result.rows, result.levels, energyValue)
                 val saved = savedPrinter()
-                val info = saved ?: printer.scan().also { savePrinter(it) }
+                // Once chosen, a printer is remembered: others in the room are never used by accident.
+                val info = saved ?: choosePrinter(printer)
                 try {
                     printer.print(info, job)
                 } catch (e: ConnectException) {
                     if (saved == null) throw e
-                    // The saved printer may have a new address or be another unit: look again.
-                    val found = printer.scan()
-                    savePrinter(found)
-                    printer.print(found, job)
+                    // The saved printer may be off or out of range: look again and let the user pick.
+                    printer.print(choosePrinter(printer, alwaysAsk = true), job)
                 }
                 if (m == Mode.GRAY && !(savedPrinter()?.isMxw01 ?: true)) {
                     ui.post { toast("Esta impresora no tiene grises: se imprimió con Floyd-Steinberg.") }
@@ -382,14 +441,16 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (requestCode != REQ_PERMISSIONS) return
-        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) print()
+        val then = afterPermissions
+        afterPermissions = null
+        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) then?.invoke()
         else status.text = "Sin permiso de Bluetooth no puedo encontrar la impresora."
     }
 
-    private fun setPrinting(on: Boolean) {
+    private fun setPrinting(on: Boolean, label: String = "Imprimiendo…") {
         printing = on
         printButton.isEnabled = !on
-        printButton.text = if (on) "Imprimiendo…" else "Imprimir"
+        printButton.text = if (on) label else "Imprimir"
     }
 
     private fun savedPrinter(): PrinterInfo? {
