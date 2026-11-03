@@ -1,0 +1,9 @@
+<resources>
+    <color name="bg">#FFFAFAF7</color>
+    <color name="fg">#FF1C1C1A</color>
+    <color name="muted">#FF6E6E68</color>
+    <color name="line">#FFDDDDD6</color>
+    <color name="accent">#FF1C1C1A</color>
+    <color name="on_accent">#FFFAFAF7</color>
+    <color name="ic_bg">#FF1C1C1A</color>
+</resources>

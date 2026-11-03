@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="16dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/printer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?android:attr/selectableItemBackground"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:padding="6dp"
+            android:textColor="@color/muted"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- Source -->
+    <RadioGroup
+        android:id="@+id/source"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/src_image"
+            style="@style/Segment"
+            android:layout_marginEnd="8dp"
+            android:text="Imagen" />
+
+        <RadioButton
+            android:id="@+id/src_text"
+            style="@style/Segment"
+            android:text="Texto" />
+    </RadioGroup>
+
+    <!-- Image controls -->
+    <Button
+        android:id="@+id/pick_image"
+        style="@style/Outline"
+        android:layout_width="match_parent"
+        android:layout_marginTop="10dp"
+        android:text="Elegir imagen" />
+
+    <!-- Text controls -->
+    <LinearLayout
+        android:id="@+id/text_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical">
+
+        <EditText
+            android:id="@+id/text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/field"
+            android:gravity="top|start"
+            android:hint="Escribe o pega texto…"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="7"
+            android:minLines="3"
+            android:padding="12dp"
+            android:scrollbars="vertical"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/markdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Markdown" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/smaller"
+                style="@style/Small"
+                android:text="A−" />
+
+            <TextView
+                android:id="@+id/size"
+                android:layout_width="34dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="@color/muted" />
+
+            <TextView
+                android:id="@+id/bigger"
+                style="@style/Small"
+                android:text="A+" />
+
+            <TextView
+                android:id="@+id/open_file"
+                style="@style/Small"
+                android:layout_marginStart="8dp"
+                android:text="Abrir…" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Preview: what will come out of the printer -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:id="@+id/preview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:background="@drawable/paper"
+                android:contentDescription="Vista previa"
+                android:padding="1dp"
+                android:scaleType="fitXY" />
+
+            <TextView
+                android:id="@+id/empty"
+                android:layout_width="match_parent"
+                android:layout_height="160dp"
+                android:gravity="center"
+                android:text="Elige una imagen o escribe algo"
+                android:textColor="@color/muted" />
+        </FrameLayout>
+    </ScrollView>
+
+    <!-- Settings -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="84dp"
+            android:layout_height="wrap_content"
+            android:text="Modo"
+            android:textColor="@color/muted" />
+
+        <Spinner
+            android:id="@+id/mode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="84dp"
+            android:layout_height="wrap_content"
+            android:text="Intensidad"
+            android:textColor="@color/muted" />
+
+        <SeekBar
+            android:id="@+id/energy"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="9" />
+
+        <TextView
+            android:id="@+id/energy_value"
+            android:layout_width="28dp"
+            android:layout_height="wrap_content"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/print"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/btn_primary"
+        android:stateListAnimator="@null"
+        android:text="Imprimir"
+        android:textAllCaps="false"
+        android:textColor="@color/on_accent"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:minLines="1"
+        android:textColor="@color/muted"
+        android:textSize="13sp" />
+</LinearLayout>
