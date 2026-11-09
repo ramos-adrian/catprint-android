@@ -3,7 +3,13 @@
 App Android mínima para imprimir en las impresoras térmicas "cat printer" por Bluetooth LE.
 Sin publicidad, sin cuentas, sin internet y sin librerías externas: el APK pesa menos de 100 KB.
 
-Es un port a Kotlin de [catprinter](https://github.com/guillorrr/catprinter) (Python).
+Es un port a Kotlin de [catprinter](https://github.com/rbaron/catprinter) de rbaron (Python),
+con el soporte para MXW01 del fork de [guillorrr](https://github.com/guillorrr/catprinter).
+
+<p align="center">
+  <img src="docs/texto.png" width="270" alt="Markdown con lista de tareas y resaltado">
+  <img src="docs/imagen.png" width="270" alt="Imagen con dithering Floyd-Steinberg">
+</p>
 
 ## Qué hace
 
@@ -55,3 +61,7 @@ teléfono (`adb install app-release.apk` o copiando el APK), no para publicarlo 
 | `Raster.kt` | Carga de imagen, escalado a 384 puntos y dithering. |
 | `TextRender.kt` | Texto plano y Markdown dibujados directamente en puntos de impresora. |
 | `MainActivity.kt` | La única pantalla. |
+
+## Licencia
+
+[MIT](LICENSE). Incluye código portado de catprinter, © 2021 rbaron, también bajo MIT.
